@@ -8,13 +8,14 @@
 
   <style>
     body{font-family:system-ui,Arial;margin:20px;background-color:#000042}
-    
-    h2 {
-      margin: 0 0 10px 0;
-      text-align: center;
-      font-size: 32px;
-      color: #ffffff
+
+    h2{
+      margin:0 0 10px 0;
+      text-align:center;
+      font-size:32px;
+      color:#ffffff;
     }
+
     .top{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
     input,select,button{
       padding:10px;border:1px solid #ddd;border-radius:10px;
@@ -23,7 +24,7 @@
     input{width:300px}
     button{cursor:pointer}
     button.active{border-color:#111;font-weight:700}
-    .meta{margin-left:auto;font-size:13px;color:#555;display:flex;gap:12px}
+    .meta{margin-left:auto;font-size:13px;color:#fff;display:flex;gap:12px}
 
     table{border-collapse:collapse;width:100%;background:#fff;margin-top:10px}
     th,td{border:1px solid #eee;padding:10px;text-align:left;vertical-align:middle}
@@ -34,9 +35,45 @@
     tr.silver{background:#f3f5f7}
     tr.bronze{background:#ffe7d6}
 
-    /* Photo in AOM column */
-    .aomWrap{display:flex;align-items:center;gap:10px}
-    .aomImg{width:25%;height:85px;border-radius:16%;object-fit:cover;border:1px solid #ddd;background:#fff}
+    /* Photo column */
+    th.photoHead, td.photoCell{
+      width:110px;
+      text-align:center;
+    }
+
+    .photoBox{
+      width:100%;
+      max-width:110px;
+      margin:0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    /* Responsive image:
+       - fixed height for table consistency
+       - auto width
+       - never overflow cell
+    */
+    .aomImg{
+      height:85px;
+      width:auto;
+      max-width:100%;
+      border-radius:16px;
+      object-fit:cover;
+      border:1px solid #ddd;
+      background:#fff;
+      display:block;
+    }
+
+    /* Mobile: reduce photo size */
+    @media (max-width: 600px){
+      th.photoHead, td.photoCell{width:90px}
+      .photoBox{max-width:90px}
+      .aomImg{height:64px}
+      input{width:100%}
+      .meta{margin-left:0}
+    }
   </style>
 </head>
 
@@ -72,6 +109,7 @@ let rows = [], headers = [];
 let sortCol = 0;
 let circleCol = "";
 let limitMode = "all"; // all | top10 | top50
+let photoCol = ""; // resolved after load
 
 function toNumber(v){
   const n = Number(String(v ?? "").replace('%','').replace(/,/g,'').trim());
@@ -100,7 +138,6 @@ function getData(){
   });
 
   const col = headers[sortCol];
-  // Always sort DESC (like IPL stats)
   data.sort((a,b)=> toNumber(b[col]) - toNumber(a[col]));
 
   if(limitMode==="top10") data = data.slice(0,10);
@@ -116,9 +153,6 @@ function render(){
   const tbody = document.querySelector("#table tbody");
   tbody.innerHTML = "";
 
-  const photoCol = headers.find(h => String(h).toLowerCase() === "photo");
-  const aomCol   = headers.find(h => String(h).toLowerCase().includes("aom"));
-
   data.forEach((r,i)=>{
     const tr = document.createElement("tr");
 
@@ -129,36 +163,30 @@ function render(){
       else if(i<30) tr.classList.add("bronze");
     }
 
+    // --- NEW PHOTO COLUMN FIRST ---
+    const photoTd = document.createElement("td");
+    photoTd.className = "photoCell";
+    const box = document.createElement("div");
+    box.className = "photoBox";
+
+    const url = photoCol ? String(r[photoCol] ?? "").trim() : "";
+    if(url){
+      const img = document.createElement("img");
+      img.className = "aomImg";
+      img.src = url;
+      img.alt = "AOM Photo";
+      img.loading = "lazy";
+      box.appendChild(img);
+    }
+    photoTd.appendChild(box);
+    tr.appendChild(photoTd);
+
+    // --- REST OF THE COLUMNS (excluding Photo column from sheet) ---
     headers.forEach(h=>{
-      // hide the Photo column itself (we use it only as data)
-      if(String(h).toLowerCase() === "photo") return;
+      if(String(h).toLowerCase() === "photo") return; // hide Photo column itself
 
       const td = document.createElement("td");
       const val = r[h] ?? "";
-
-      // AOM cell: photo + name
-      if(aomCol && h === aomCol && photoCol){
-        const wrap = document.createElement("div");
-        wrap.className = "aomWrap";
-
-        const url = String(r[photoCol] ?? "").trim();
-        if(url){
-          const img = document.createElement("img");
-          img.className = "aomImg";
-          img.src = url;
-          img.alt = "AOM";
-          img.loading = "lazy";
-          wrap.appendChild(img);
-        }
-
-        const name = document.createElement("span");
-        name.textContent = val;
-        wrap.appendChild(name);
-
-        td.appendChild(wrap);
-        tr.appendChild(td);
-        return;
-      }
 
       // Ranking medals for Top 3
       if(String(h).toLowerCase().includes("ranking")){
@@ -182,14 +210,23 @@ function buildHeader(){
   thead.innerHTML = "";
 
   const tr = document.createElement("tr");
+
+  // NEW header for photo column
+  const thPhoto = document.createElement("th");
+  thPhoto.textContent = "Photo";
+  thPhoto.className = "photoHead";
+  tr.appendChild(thPhoto);
+
+  // Existing headers (excluding Photo)
   headers.forEach((h,i)=>{
-    if(String(h).toLowerCase() === "photo") return; // don't show Photo column
+    if(String(h).toLowerCase() === "photo") return;
 
     const th = document.createElement("th");
     th.textContent = h + (i===sortCol ? " ▼" : "");
     th.onclick = ()=>{ sortCol=i; buildHeader(); render(); };
     tr.appendChild(th);
   });
+
   thead.appendChild(tr);
 }
 
@@ -201,17 +238,17 @@ Papa.parse(CSV_URL,{
     rows = res.data || [];
     headers = res.meta?.fields || [];
 
-    // Default sort by Ach% (descending)
+    // resolve column names
     const achIndex = headers.findIndex(h => String(h).toLowerCase().includes("ach"));
     if(achIndex >= 0) sortCol = achIndex;
 
-    // Circle filter
     circleCol = headers.find(h => String(h).toLowerCase().includes("circle")) || "";
+    photoCol  = headers.find(h => String(h).toLowerCase() === "photo") || "";
 
     buildHeader();
     setUpdated();
 
-    // Fill circle dropdown (only if circleCol exists)
+    // Fill circle dropdown
     if(circleCol){
       const circles = [...new Set(rows.map(r => r[circleCol]).filter(Boolean))].sort();
       circles.forEach(v=>{
