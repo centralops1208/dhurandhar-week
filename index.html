@@ -8,9 +8,8 @@
 
   <style>
     body{font-family:system-ui,Arial;margin:20px;background:#fafafa}
-    h2{margin-bottom:10px}
-
-    .top{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+    h2{margin:0 0 10px 0}
+    .top{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
     input,select,button{
       padding:10px;border:1px solid #ddd;border-radius:10px;
       font-size:14px;background:#fff;
@@ -20,89 +19,104 @@
     button.active{border-color:#111;font-weight:700}
     .meta{margin-left:auto;font-size:13px;color:#555;display:flex;gap:12px}
 
-    table{border-collapse:collapse;width:100%;background:#fff}
-    th,td{border:1px solid #eee;padding:10px;text-align:left}
-    th{background:#f5f5f5;position:sticky;top:0}
+    table{border-collapse:collapse;width:100%;background:#fff;margin-top:10px}
+    th,td{border:1px solid #eee;padding:10px;text-align:left;vertical-align:middle}
+    th{cursor:pointer;background:#f5f5f5;position:sticky;top:0}
     tr:hover{background:#f9f9f9}
 
     tr.gold{background:#fff8d1}
     tr.silver{background:#f3f5f7}
     tr.bronze{background:#ffe7d6}
+
+    /* Photo in AOM column */
+    .aomWrap{display:flex;align-items:center;gap:10px}
+    .aomImg{width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid #ddd;background:#fff}
   </style>
 </head>
 
 <body>
-<h2>🔥 Dhurandhar Week – AOM Leaderboard</h2>
+  <h2>🔥 Dhurandhar Week – AOM Leaderboard</h2>
 
-<div class="top">
-  <input id="search" placeholder="Search AOM / Circle…" />
-  <select id="circle">
-    <option value="">All Circles</option>
-  </select>
+  <div class="top">
+    <input id="search" placeholder="Search AOM / Circle…" />
+    <select id="circle">
+      <option value="">All Circles</option>
+    </select>
 
-  <button id="btnAll" class="active">All</button>
-  <button id="btn10">Top 10</button>
-  <button id="btn50">Top 50</button>
+    <button id="btnAll" class="active" type="button">All</button>
+    <button id="btn10" type="button">Top 10</button>
+    <button id="btn50" type="button">Top 50</button>
 
-  <div class="meta">
-    <span id="count">Loading…</span>
-    <span id="updated">Last updated: —</span>
+    <div class="meta">
+      <span id="count">Loading…</span>
+      <span id="updated">Last updated: —</span>
+    </div>
   </div>
-</div>
 
-<table id="table">
-  <thead></thead>
-  <tbody></tbody>
-</table>
+  <table id="table">
+    <thead></thead>
+    <tbody></tbody>
+  </table>
 
 <script>
 const CSV_URL =
 "https://docs.google.com/spreadsheets/d/e/2PACX-1vRUkfZBtB8_vCdr2eD5qh5GJWwuXyrvreI66slaXScut5SS118EUJnC671Pcy4ebpc_g9dZ3D3xpAO-/pub?gid=0&single=true&output=csv";
 
-let rows=[], headers=[];
-let sortCol=0;
-let circleCol="";
-let limitMode="all";
+let rows = [], headers = [];
+let sortCol = 0;
+let circleCol = "";
+let limitMode = "all"; // all | top10 | top50
 
-function num(v){
-  const n = Number(String(v||"").replace('%','').replace(/,/g,''));
-  return isNaN(n)?0:n;
+function toNumber(v){
+  const n = Number(String(v ?? "").replace('%','').replace(/,/g,'').trim());
+  return Number.isFinite(n) ? n : 0;
 }
 
 function setActive(id){
   ["btnAll","btn10","btn50"].forEach(b=>{
-    document.getElementById(b).classList.toggle("active",b===id);
+    document.getElementById(b).classList.toggle("active", b===id);
   });
 }
 
 function setUpdated(){
-  updated.innerText="Last updated: "+new Date().toLocaleString();
+  document.getElementById("updated").innerText =
+    "Last updated: " + new Date().toLocaleString();
 }
 
-function filtered(){
-  const q=search.value.toLowerCase();
-  const c=circle.value;
+function getData(){
+  const q = document.getElementById("search").value.toLowerCase().trim();
+  const c = document.getElementById("circle").value;
 
-  let d=rows.filter(r=>
-    (!q || Object.values(r).some(v=>String(v).toLowerCase().includes(q))) &&
-    (!c || (circleCol && r[circleCol]===c))
-  );
+  let data = rows.filter(r => {
+    const searchOk = !q || Object.values(r).some(v => String(v).toLowerCase().includes(q));
+    const circleOk = !c || (circleCol && String(r[circleCol]) === c);
+    return searchOk && circleOk;
+  });
 
-  d.sort((a,b)=>num(b[headers[sortCol]])-num(a[headers[sortCol]]));
+  const col = headers[sortCol];
+  // Always sort DESC (like IPL stats)
+  data.sort((a,b)=> toNumber(b[col]) - toNumber(a[col]));
 
-  if(limitMode==="top10") d=d.slice(0,10);
-  if(limitMode==="top50") d=d.slice(0,50);
-  return d;
+  if(limitMode==="top10") data = data.slice(0,10);
+  if(limitMode==="top50") data = data.slice(0,50);
+
+  return data;
 }
 
 function render(){
-  const data=filtered();
-  count.innerText=`${data.length} shown`;
-  tbody.innerHTML="";
+  const data = getData();
+  document.getElementById("count").innerText = `${data.length} shown`;
+
+  const tbody = document.querySelector("#table tbody");
+  tbody.innerHTML = "";
+
+  const photoCol = headers.find(h => String(h).toLowerCase() === "photo");
+  const aomCol   = headers.find(h => String(h).toLowerCase().includes("aom"));
 
   data.forEach((r,i)=>{
-    const tr=document.createElement("tr");
+    const tr = document.createElement("tr");
 
+    // Medal background only for Top10/Top50
     if(limitMode!=="all"){
       if(i<10) tr.classList.add("gold");
       else if(i<20) tr.classList.add("silver");
@@ -110,29 +124,64 @@ function render(){
     }
 
     headers.forEach(h=>{
-      const td=document.createElement("td");
-      const val=r[h]||"";
+      // hide the Photo column itself (we use it only as data)
+      if(String(h).toLowerCase() === "photo") return;
 
-      if(h.toLowerCase().includes("ranking")){
-        if(i===0) td.textContent=`🥇 ${val}`;
-        else if(i===1) td.textContent=`🥈 ${val}`;
-        else if(i===2) td.textContent=`🥉 ${val}`;
-        else td.textContent=val;
-      } else td.textContent=val;
+      const td = document.createElement("td");
+      const val = r[h] ?? "";
+
+      // AOM cell: photo + name
+      if(aomCol && h === aomCol && photoCol){
+        const wrap = document.createElement("div");
+        wrap.className = "aomWrap";
+
+        const url = String(r[photoCol] ?? "").trim();
+        if(url){
+          const img = document.createElement("img");
+          img.className = "aomImg";
+          img.src = url;
+          img.alt = "AOM";
+          img.loading = "lazy";
+          wrap.appendChild(img);
+        }
+
+        const name = document.createElement("span");
+        name.textContent = val;
+        wrap.appendChild(name);
+
+        td.appendChild(wrap);
+        tr.appendChild(td);
+        return;
+      }
+
+      // Ranking medals for Top 3
+      if(String(h).toLowerCase().includes("ranking")){
+        if(i===0) td.textContent = `🥇 ${val}`;
+        else if(i===1) td.textContent = `🥈 ${val}`;
+        else if(i===2) td.textContent = `🥉 ${val}`;
+        else td.textContent = val;
+      } else {
+        td.textContent = val;
+      }
 
       tr.appendChild(td);
     });
+
     tbody.appendChild(tr);
   });
 }
 
 function buildHeader(){
-  thead.innerHTML="";
-  const tr=document.createElement("tr");
+  const thead = document.querySelector("#table thead");
+  thead.innerHTML = "";
+
+  const tr = document.createElement("tr");
   headers.forEach((h,i)=>{
-    const th=document.createElement("th");
-    th.textContent=h+(i===sortCol?" ▼":"");
-    th.onclick=()=>{sortCol=i;buildHeader();render();};
+    if(String(h).toLowerCase() === "photo") return; // don't show Photo column
+
+    const th = document.createElement("th");
+    th.textContent = h + (i===sortCol ? " ▼" : "");
+    th.onclick = ()=>{ sortCol=i; buildHeader(); render(); };
     tr.appendChild(th);
   });
   thead.appendChild(tr);
@@ -143,31 +192,39 @@ Papa.parse(CSV_URL,{
   header:true,
   skipEmptyLines:true,
   complete:(res)=>{
-    rows=res.data||[];
-    headers=res.meta.fields||[];
+    rows = res.data || [];
+    headers = res.meta?.fields || [];
 
-    sortCol=headers.findIndex(h=>h.toLowerCase().includes("ach"));
-    circleCol=headers.find(h=>h.toLowerCase().includes("circle"))||"";
+    // Default sort by Ach% (descending)
+    const achIndex = headers.findIndex(h => String(h).toLowerCase().includes("ach"));
+    if(achIndex >= 0) sortCol = achIndex;
+
+    // Circle filter
+    circleCol = headers.find(h => String(h).toLowerCase().includes("circle")) || "";
 
     buildHeader();
     setUpdated();
 
+    // Fill circle dropdown (only if circleCol exists)
     if(circleCol){
-      [...new Set(rows.map(r=>r[circleCol]).filter(Boolean))].forEach(v=>{
-        const o=document.createElement("option");
-        o.value=v;o.textContent=v;
-        circle.appendChild(o);
+      const circles = [...new Set(rows.map(r => r[circleCol]).filter(Boolean))].sort();
+      circles.forEach(v=>{
+        const o = document.createElement("option");
+        o.value=v; o.textContent=v;
+        document.getElementById("circle").appendChild(o);
       });
     }
+
     render();
   }
 });
 
-search.oninput=render;
-circle.onchange=render;
-btnAll.onclick=()=>{limitMode="all";setActive("btnAll");render();};
-btn10.onclick=()=>{limitMode="top10";setActive("btn10");render();};
-btn50.onclick=()=>{limitMode="top50";setActive("btn50");render();};
+document.getElementById("search").addEventListener("input", render);
+document.getElementById("circle").addEventListener("change", render);
+
+document.getElementById("btnAll").onclick = ()=>{ limitMode="all"; setActive("btnAll"); render(); };
+document.getElementById("btn10").onclick  = ()=>{ limitMode="top10"; setActive("btn10"); render(); };
+document.getElementById("btn50").onclick  = ()=>{ limitMode="top50"; setActive("btn50"); render(); };
 </script>
 </body>
 </html>
