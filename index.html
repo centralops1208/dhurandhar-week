@@ -1,10 +1,108 @@
 <!doctype html>
 <html>
-  <head>
-    <title>Dhurandhar Week</title>
-  </head>
-  <body>
-    <h1>Hello Dhurandhar 🚀</h1>
-    <p>Your website is live.</p>
-  </body>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dhurandhar Week Leaderboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    body{font-family:system-ui,Arial;margin:20px;background:#fafafa}
+    h2{margin-bottom:10px}
+    .top{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    input,select{
+      padding:10px;
+      border:1px solid #ddd;
+      border-radius:8px;
+      font-size:14px;
+    }
+    input{width:280px}
+    table{border-collapse:collapse;width:100%;margin-top:15px;background:#fff}
+    th,td{border:1px solid #eee;padding:10px;text-align:left}
+    th{cursor:pointer;background:#f5f5f5;position:sticky;top:0}
+    tr:hover{background:#f9f9f9}
+    .count{margin-left:auto;font-size:13px;color:#555}
+  </style>
+</head>
+
+<body>
+  <h2>🔥 Dhurandhar Week – AOM Leaderboard</h2>
+
+  <div class="top">
+    <input id="search" placeholder="Search AOM / Circle…" />
+    <select id="circle">
+      <option value="">All Circles</option>
+    </select>
+    <div class="count" id="count">Loading…</div>
+  </div>
+
+  <table id="table">
+    <thead></thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+const CSV_URL =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vQfQrEFSdjiIgaw0A-uxf02lBXlmDd1NXFmeKZnTRH4LNcb0VEp1AAEa7f9f8Y9B8kKoPk3tFBqAWzg/pub?gid=228746814&single=true&output=csv";
+
+let rows=[], headers=[], sortCol=0, sortDesc=true, circleCol="";
+
+function render(){
+  const q=document.getElementById("search").value.toLowerCase();
+  const c=document.getElementById("circle").value;
+  let data=rows.filter(r=>
+    (!q||Object.values(r).some(v=>String(v).toLowerCase().includes(q))) &&
+    (!c||r[circleCol]===c)
+  );
+
+  const col=headers[sortCol];
+  data.sort((a,b)=>{
+    const x=Number(a[col])||0, y=Number(b[col])||0;
+    return sortDesc?y-x:x-y;
+  });
+
+  document.getElementById("count").innerText=`${data.length} records`;
+
+  const tbody=document.querySelector("#table tbody");
+  tbody.innerHTML="";
+  data.forEach(r=>{
+    const tr=document.createElement("tr");
+    headers.forEach(h=>{
+      const td=document.createElement("td");
+      td.textContent=r[h]||"";
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+Papa.parse(CSV_URL,{
+  download:true,
+  header:true,
+  complete:(res)=>{
+    rows=res.data;
+    headers=res.meta.fields;
+
+    const thead=document.querySelector("#table thead");
+    thead.innerHTML="<tr>"+headers.map((h,i)=>`<th onclick="sortCol=${i};sortDesc=!sortDesc;render()">${h}</th>`).join("")+"</tr>";
+
+    const p=headers.findIndex(h=>h.toLowerCase().includes("points"));
+    if(p>=0) sortCol=p;
+
+    circleCol=headers.find(h=>h.toLowerCase().includes("circle"));
+    if(circleCol){
+      [...new Set(rows.map(r=>r[circleCol]).filter(Boolean))].forEach(v=>{
+        const o=document.createElement("option");
+        o.value=v;o.textContent=v;
+        document.getElementById("circle").appendChild(o);
+      });
+    }
+    render();
+  }
+});
+
+document.getElementById("search").addEventListener("input",render);
+document.getElementById("circle").addEventListener("change",render);
+</script>
+</body>
 </html>
