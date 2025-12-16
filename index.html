@@ -120,15 +120,24 @@ function render(){
     else if(idx < 30) tr.classList.add("bronze");
 
     headers.forEach(h=>{
-      const td=document.createElement("td");
-     const val = r[h] ?? "";
+      const isPhotoCol = String(h).toLowerCase().includes("photo");
+if (isPhotoCol && val) {
+  const img = document.createElement("img");
+  img.src = val;
+  img.alt = "AOM Photo";
+  img.style.width = "40px";
+  img.style.height = "40px";
+  img.style.borderRadius = "50%";
+  img.style.objectFit = "cover";
+  td.appendChild(img);
+} else {
 
 // Medal icons in Ranking column (based on the visible sorted order)
 const isRankingCol = String(h).toLowerCase().includes("ranking");
 if (isRankingCol) {
-  if (idx === 0) td.textContent = `🥇 ${val}`;
-  else if (idx === 1) td.textContent = `🥈 ${val}`;
-  else if (idx === 2) td.textContent = `🥉 ${val}`;
+  if (idx === 0) td.textContent = ` ${val}`🥇;
+  else if (idx === 1) td.textContent = ` ${val}`🥈;
+  else if (idx === 2) td.textContent = ` ${val}`🥉;
   else td.textContent = val;
 } else {
   td.textContent = val;
