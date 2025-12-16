@@ -121,7 +121,19 @@ function render(){
 
     headers.forEach(h=>{
       const td=document.createElement("td");
-      td.textContent = r[h] ?? "";
+     const val = r[h] ?? "";
+
+// Medal icons in Ranking column (based on the visible sorted order)
+const isRankingCol = String(h).toLowerCase().includes("ranking");
+if (isRankingCol) {
+  if (idx === 0) td.textContent = `🥇 ${val}`;
+  else if (idx === 1) td.textContent = `🥈 ${val}`;
+  else if (idx === 2) td.textContent = `🥉 ${val}`;
+  else td.textContent = val;
+} else {
+  td.textContent = val;
+}
+
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
