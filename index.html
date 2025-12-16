@@ -193,4 +193,44 @@ function buildHeader(){
   const tr=document.createElement("tr");
   headers.forEach((h,i)=>{
     if(h.toLowerCase()==="photo") return;
-    c
+    const th=document.createElement("th");
+    th.textContent=h+(i===sortCol?" ▼":"");
+    th.onclick=()=>{sortCol=i;buildHeader();render();};
+    tr.appendChild(th);
+  });
+  document.querySelector("thead").innerHTML="";
+  document.querySelector("thead").appendChild(tr);
+}
+
+Papa.parse(CSV_URL,{
+  download:true,
+  header:true,
+  skipEmptyLines:true,
+  complete:(res)=>{
+    rows=res.data||[];
+    headers=res.meta.fields||[];
+    sortCol=headers.findIndex(h=>h.toLowerCase().includes("ach"));
+    circleCol=headers.find(h=>h.toLowerCase().includes("circle"))||"";
+
+    buildHeader();
+    setUpdated();
+
+    if(circleCol){
+      [...new Set(rows.map(r=>r[circleCol]).filter(Boolean))].forEach(v=>{
+        const o=document.createElement("option");
+        o.value=v;o.textContent=v;
+        document.getElementById("circle").appendChild(o);
+      });
+    }
+    render();
+  }
+});
+
+search.oninput=render;
+circle.onchange=render;
+btnAll.onclick=()=>{limitMode="all";setActive("btnAll");render();};
+btn10.onclick=()=>{limitMode="top10";setActive("btn10");render();};
+btn50.onclick=()=>{limitMode="top50";setActive("btn50");render();};
+</script>
+</body>
+</html>
