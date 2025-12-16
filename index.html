@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dhurandhar Week Leaderboard</title>
+  <title>Dhurandhar Week – AOM Leaderboard</title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <style>
@@ -13,39 +13,23 @@
     input,select,button{
       padding:10px;
       border:1px solid #ddd;
-      border-radius:12px;
+      border-radius:10px;
       font-size:14px;
       background:#fff;
     }
-    input{width:320px;max-width:100%}
+    input{width:300px}
     button{cursor:pointer}
     button.active{border-color:#111;font-weight:700}
-    .meta{margin-left:auto;font-size:13px;color:#555;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .meta{margin-left:auto;font-size:13px;color:#555;display:flex;gap:12px}
 
-    table{border-collapse:collapse;width:100%;margin-top:10px;background:#fff;border-radius:14px;overflow:hidden}
-    th,td{border:1px solid #eee;padding:12px;text-align:left;vertical-align:middle}
-    th{cursor:pointer;background:#f5f5f5;position:sticky;top:0;z-index:1}
+    table{border-collapse:collapse;width:100%;background:#fff;margin-top:10px}
+    th,td{border:1px solid #eee;padding:10px;text-align:left}
+    th{cursor:pointer;background:#f5f5f5;position:sticky;top:0}
     tr:hover{background:#f9f9f9}
 
-    /* Medal bands */
     tr.gold{background:#fff8d1}
     tr.silver{background:#f3f5f7}
     tr.bronze{background:#ffe7d6}
-
-    /* Photo */
-    .photoWrap{display:flex;align-items:center;gap:10px}
-    .aomImg{
-      width:40px;height:40px;border-radius:50%;
-      object-fit:cover;border:1px solid #e5e5e5;background:#fff;
-      display:block;
-    }
-    .fallback{
-      width:40px;height:40px;border-radius:50%;
-      display:inline-flex;align-items:center;justify-content:center;
-      border:1px solid #e5e5e5;background:#fafafa;color:#666;font-weight:700;
-      font-size:14px;
-    }
-    .smallNote{font-size:12px;color:#666}
   </style>
 </head>
 
@@ -58,18 +42,14 @@
       <option value="">All Circles</option>
     </select>
 
-    <button id="btnAll" class="active" type="button">All</button>
-    <button id="btn10" type="button">Top 10</button>
-    <button id="btn50" type="button">Top 50</button>
+    <button id="btnAll" class="active">All</button>
+    <button id="btn10">Top 10</button>
+    <button id="btn50">Top 50</button>
 
     <div class="meta">
       <span id="count">Loading…</span>
       <span id="updated">Last updated: —</span>
     </div>
-  </div>
-
-  <div class="smallNote">
-    Tip: Add a <b>Photo</b> (or <b>Photo URL</b>) column in Google Sheet to show AOM headshots.
   </div>
 
   <table id="table">
@@ -84,8 +64,116 @@ const CSV_URL =
 let rows=[], headers=[];
 let sortCol=0, sortDesc=true;
 let circleCol="";
-let limitMode="all"; // all | top10 | top50
+let limitMode="all";
 
 function toNumber(v){
-  if(v === null || v === undefined) return NaN;
-  const s = String(v).trim().replace(
+  const n = Number(String(v).replace('%','').replace(/,/g,''));
+  return isNaN(n) ? 0 : n;
+}
+
+function setActive(id){
+  ["btnAll","btn10","btn50"].forEach(b=>{
+    document.getElementById(b).classList.toggle("active", b===id);
+  });
+}
+
+function setUpdated(){
+  document.getElementById("updated").innerText =
+    "Last updated: " + new Date().toLocaleString();
+}
+
+function getData(){
+  const q=document.getElementById("search").value.toLowerCase();
+  const c=document.getElementById("circle").value;
+
+  let data=rows.filter(r=>
+    (!q || Object.values(r).some(v=>String(v).toLowerCase().includes(q))) &&
+    (!c || r[circleCol]===c)
+  );
+
+  const col=headers[sortCol];
+  data.sort((a,b)=>toNumber(b[col]) - toNumber(a[col]));
+
+  if(limitMode==="top10") data=data.slice(0,10);
+  if(limitMode==="top50") data=data.slice(0,50);
+
+  return data;
+}
+
+function render(){
+  const data=getData();
+  document.getElementById("count").innerText=`${data.length} shown`;
+
+  const tbody=document.querySelector("tbody");
+  tbody.innerHTML="";
+
+  data.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+
+    if(limitMode!=="all"){
+      if(i<10) tr.classList.add("gold");
+      else if(i<20) tr.classList.add("silver");
+      else if(i<30) tr.classList.add("bronze");
+    }
+
+    headers.forEach(h=>{
+      const td=document.createElement("td");
+      const val=r[h]??"";
+
+      if(h.toLowerCase().includes("ranking")){
+        if(i===0) td.textContent=`🥇 ${val}`;
+        else if(i===1) td.textContent=`🥈 ${val}`;
+        else if(i===2) td.textContent=`🥉 ${val}`;
+        else td.textContent=val;
+      } else {
+        td.textContent=val;
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function buildHeader(){
+  const tr=document.createElement("tr");
+  headers.forEach((h,i)=>{
+    const th=document.createElement("th");
+    th.textContent=h+(i===sortCol?" ▼":"");
+    th.onclick=()=>{sortCol=i;render();};
+    tr.appendChild(th);
+  });
+  document.querySelector("thead").appendChild(tr);
+}
+
+Papa.parse(CSV_URL,{
+  download:true,
+  header:true,
+  skipEmptyLines:true,
+  complete:(res)=>{
+    rows=res.data;
+    headers=res.meta.fields;
+
+    sortCol=headers.findIndex(h=>h.toLowerCase().includes("ach"));
+    circleCol=headers.find(h=>h.toLowerCase().includes("circle"));
+
+    buildHeader();
+    setUpdated();
+    render();
+
+    [...new Set(rows.map(r=>r[circleCol]).filter(Boolean))].forEach(v=>{
+      const o=document.createElement("option");
+      o.value=v;o.textContent=v;
+      document.getElementById("circle").appendChild(o);
+    });
+  }
+});
+
+document.getElementById("search").oninput=render;
+document.getElementById("circle").onchange=render;
+
+btnAll.onclick=()=>{limitMode="all";setActive("btnAll");render();};
+btn10.onclick=()=>{limitMode="top10";setActive("btn10");render();};
+btn50.onclick=()=>{limitMode="top50";setActive("btn50");render();};
+</script>
+</body>
+</html>
