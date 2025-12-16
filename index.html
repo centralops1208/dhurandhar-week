@@ -29,34 +29,31 @@
     tr.silver{background:#f3f5f7}
     tr.bronze{background:#ffe7d6}
 
-    /* ===== AOM PHOTO + NAME ===== */
-    .aomWrap{
-      display:flex;
-      align-items:center;
-      gap:14px;
+    /* ===== PHOTO COLUMN ===== */
+    .photoCell{
+      width:90px;
+      text-align:center;
     }
-
-    .aomPhotoBox{
-      width:64px;
-      height:64px;
-      border:1px solid #ddd;
+    .photoBox{
+      width:80px;
+      height:80px;
       border-radius:14px;
+      border:1px solid #ddd;
+      background:#fff;
       display:flex;
       align-items:center;
       justify-content:center;
-      background:#fff;
+      margin:auto;
     }
-
-    .aomImg{
-      width:48px;
-      height:48px;
+    .photoImg{
+      width:70px;
+      height:70px;
       border-radius:50%;
       object-fit:cover;
     }
 
     .aomName{
       font-weight:600;
-      white-space:nowrap;
     }
   </style>
 </head>
@@ -94,8 +91,8 @@ let sortCol=0;
 let circleCol="";
 let limitMode="all";
 
-function toNum(v){
-  const n = Number(String(v||"").replace('%','').replace(/,/g,''));
+function num(v){
+  const n=Number(String(v||"").replace('%','').replace(/,/g,''));
   return isNaN(n)?0:n;
 }
 
@@ -106,20 +103,19 @@ function setActive(id){
 }
 
 function setUpdated(){
-  document.getElementById("updated").innerText =
-    "Last updated: " + new Date().toLocaleString();
+  updated.innerText="Last updated: "+new Date().toLocaleString();
 }
 
-function getData(){
-  const q=document.getElementById("search").value.toLowerCase();
-  const c=document.getElementById("circle").value;
+function filtered(){
+  const q=search.value.toLowerCase();
+  const c=circle.value;
 
   let d=rows.filter(r=>
     (!q || Object.values(r).some(v=>String(v).toLowerCase().includes(q))) &&
     (!c || (circleCol && r[circleCol]===c))
   );
 
-  d.sort((a,b)=>toNum(b[headers[sortCol]])-toNum(a[headers[sortCol]]));
+  d.sort((a,b)=>num(b[headers[sortCol]])-num(a[headers[sortCol]]));
 
   if(limitMode==="top10") d=d.slice(0,10);
   if(limitMode==="top50") d=d.slice(0,50);
@@ -127,9 +123,8 @@ function getData(){
 }
 
 function render(){
-  const data=getData();
-  document.getElementById("count").innerText=`${data.length} shown`;
-  const tbody=document.querySelector("tbody");
+  const data=filtered();
+  count.innerText=`${data.length} shown`;
   tbody.innerHTML="";
 
   const photoCol=headers.find(h=>h.toLowerCase()==="photo");
@@ -151,36 +146,37 @@ function render(){
       const val=r[h]||"";
 
       if(h===aomCol && photoCol){
-        const wrap=document.createElement("div");
-        wrap.className="aomWrap";
+        // PHOTO COLUMN FIRST
+        const photoTd=document.createElement("td");
+        photoTd.className="photoCell";
 
         const box=document.createElement("div");
-        box.className="aomPhotoBox";
+        box.className="photoBox";
 
         const url=String(r[photoCol]||"").trim();
         if(url){
           const img=document.createElement("img");
-          img.className="aomImg";
+          img.className="photoImg";
           img.src=url;
           img.loading="lazy";
           box.appendChild(img);
         }
-        wrap.appendChild(box);
+        photoTd.appendChild(box);
+        tr.appendChild(photoTd);
 
-        const name=document.createElement("span");
-        name.className="aomName";
-        name.textContent=val;
-        wrap.appendChild(name);
-
-        td.appendChild(wrap);
+        // NAME COLUMN
+        td.className="aomName";
+        td.textContent=val;
+        tr.appendChild(td);
+        return;
       }
-      else if(h.toLowerCase().includes("ranking")){
+
+      if(h.toLowerCase().includes("ranking")){
         if(i===0) td.textContent=`🥇 ${val}`;
         else if(i===1) td.textContent=`🥈 ${val}`;
         else if(i===2) td.textContent=`🥉 ${val}`;
         else td.textContent=val;
-      }
-      else td.textContent=val;
+      } else td.textContent=val;
 
       tr.appendChild(td);
     });
@@ -190,7 +186,11 @@ function render(){
 }
 
 function buildHeader(){
+  thead.innerHTML="";
   const tr=document.createElement("tr");
+
+  tr.innerHTML="<th>Photo</th>";
+
   headers.forEach((h,i)=>{
     if(h.toLowerCase()==="photo") return;
     const th=document.createElement("th");
@@ -198,8 +198,7 @@ function buildHeader(){
     th.onclick=()=>{sortCol=i;buildHeader();render();};
     tr.appendChild(th);
   });
-  document.querySelector("thead").innerHTML="";
-  document.querySelector("thead").appendChild(tr);
+  thead.appendChild(tr);
 }
 
 Papa.parse(CSV_URL,{
@@ -209,6 +208,7 @@ Papa.parse(CSV_URL,{
   complete:(res)=>{
     rows=res.data||[];
     headers=res.meta.fields||[];
+
     sortCol=headers.findIndex(h=>h.toLowerCase().includes("ach"));
     circleCol=headers.find(h=>h.toLowerCase().includes("circle"))||"";
 
@@ -219,7 +219,7 @@ Papa.parse(CSV_URL,{
       [...new Set(rows.map(r=>r[circleCol]).filter(Boolean))].forEach(v=>{
         const o=document.createElement("option");
         o.value=v;o.textContent=v;
-        document.getElementById("circle").appendChild(o);
+        circle.appendChild(o);
       });
     }
     render();
