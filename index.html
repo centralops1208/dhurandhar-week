@@ -17,4 +17,215 @@
       font-size:14px;
       background:#fff;
     }
-    input{width:2
+    input{width:280px;max-width:100%}
+    button{cursor:pointer}
+    button.active{border-color:#111; font-weight:600}
+    .meta{margin-left:auto;font-size:13px;color:#555;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    table{border-collapse:collapse;width:100%;margin-top:10px;background:#fff}
+    th,td{border:1px solid #eee;padding:10px;text-align:left}
+    th{cursor:pointer;background:#f5f5f5;position:sticky;top:0}
+    tr:hover{background:#f9f9f9}
+
+    /* Medal bands */
+    tr.gold{background:#fff8d1}
+    tr.silver{background:#f3f5f7}
+    tr.bronze{background:#ffe7d6}
+  </style>
+</head>
+
+<body>
+  <h2>🔥 Dhurandhar Week – AOM Leaderboard</h2>
+
+  <div class="top">
+    <input id="search" placeholder="Search AOM / Circle…" />
+    <select id="circle">
+      <option value="">All Circles</option>
+    </select>
+
+    <button id="btnAll" class="active" type="button">All</button>
+    <button id="btn10" type="button">Top 10</button>
+    <button id="btn50" type="button">Top 50</button>
+
+    <div class="meta">
+      <span id="count">Loading…</span>
+      <span id="updated">Last updated: —</span>
+    </div>
+  </div>
+
+  <table id="table">
+    <thead></thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+const CSV_URL =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vRUkfZBtB8_vCdr2eD5qh5GJWwuXyrvreI66slaXScut5SS118EUJnC671Pcy4ebpc_g9dZ3D3xpAO-/pub?gid=0&single=true&output=csv";
+
+let rows=[], headers=[];
+let sortCol=0, sortDesc=true;
+let circleCol="";
+let limitMode="all"; // all | top10 | top50
+
+function toNumber(v){
+  if(v === null || v === undefined) return NaN;
+  const s = String(v).trim().replace('%','').replace(/,/g,'');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function setActive(btnId){
+  ["btnAll","btn10","btn50"].forEach(id=>{
+    document.getElementById(id).classList.toggle("active", id===btnId);
+  });
+}
+
+function getFilteredSorted(){
+  const q=document.getElementById("search").value.toLowerCase();
+  const c=document.getElementById("circle").value;
+
+  let data=rows.filter(r=>{
+    const searchOk = !q || Object.values(r).some(v=>String(v).toLowerCase().includes(q));
+    const circleOk = !c || (circleCol && String(r[circleCol])===c);
+    return searchOk && circleOk;
+  });
+
+  const col=headers[sortCol];
+  data.sort((a,b)=>{
+    const an=toNumber(a[col]), bn=toNumber(b[col]);
+    const bothNum = !Number.isNaN(an) && !Number.isNaN(bn);
+    if(bothNum) return sortDesc ? (bn-an) : (an-bn);
+    const cmp = String(a[col] ?? "").localeCompare(String(b[col] ?? ""));
+    return sortDesc ? -cmp : cmp;
+  });
+
+  if(limitMode==="top10") data = data.slice(0,10);
+  if(limitMode==="top50") data = data.slice(0,50);
+
+  return data;
+}
+
+function render(){
+  const data = getFilteredSorted();
+  document.getElementById("count").innerText = `${data.length} shown`;
+
+  const tbody=document.querySelector("#table tbody");
+  tbody.innerHTML="";
+
+  data.forEach((r, idx)=>{
+    const tr=document.createElement("tr");
+
+    // Medal bands based on ranking in current view
+    if(idx < 10) tr.classList.add("gold");
+    else if(idx < 20) tr.classList.add("silver");
+    else if(idx < 30) tr.classList.add("bronze");
+
+    headers.forEach(h=>{
+      const td=document.createElement("td");
+      td.textContent = r[h] ?? "";
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function buildHeader(){
+  const thead=document.querySelector("#table thead");
+  thead.innerHTML="";
+  const tr=document.createElement("tr");
+
+  headers.forEach((h,i)=>{
+    const th=document.createElement("th");
+    const arrow = (i===sortCol) ? (sortDesc ? " ▼" : " ▲") : "";
+    th.textContent = h + arrow;
+    th.onclick = ()=>{
+      if(sortCol===i) sortDesc = !sortDesc;
+      else { sortCol=i; sortDesc=true; }
+      buildHeader();
+      render();
+    };
+    tr.appendChild(th);
+  });
+
+  thead.appendChild(tr);
+}
+
+function setupCircleFilter(){
+  const sel=document.getElementById("circle");
+  sel.innerHTML = `<option value="">All Circles</option>`;
+
+  circleCol = headers.find(h => String(h).toLowerCase().includes("circle")) ||
+              headers.find(h => String(h).toLowerCase().includes("region"));
+
+  if(!circleCol) return;
+
+  const values = Array.from(new Set(
+    rows.map(r => String(r[circleCol] ?? "").trim()).filter(Boolean)
+  )).sort();
+
+  values.forEach(v=>{
+    const o=document.createElement("option");
+    o.value=v; o.textContent=v;
+    sel.appendChild(o);
+  });
+}
+
+function setLastUpdated(){
+  const d = new Date();
+  const opts = { year:"numeric", month:"short", day:"2-digit", hour:"2-digit", minute:"2-digit" };
+  document.getElementById("updated").innerText = "Last updated: " + d.toLocaleString(undefined, opts);
+}
+
+/* Show errors on the page instead of getting stuck on Loading… */
+window.onerror = function(msg, url, line, col) {
+  document.getElementById("count").innerText = "Error: " + msg + " (line " + line + ")";
+};
+
+Papa.parse(CSV_URL,{
+  download:true,
+  header:true,
+  skipEmptyLines:true,
+  error: (err) => {
+    document.getElementById("count").innerText = "CSV load error: " + (err?.message || err);
+  },
+  complete:(res)=>{
+    try{
+      rows = res.data || [];
+      headers = res.meta?.fields || [];
+
+      if(!headers.length){
+        document.getElementById("count").innerText = "No headers found in CSV.";
+        return;
+      }
+
+      // Default sort by Ach% (descending)
+      const achIndex = headers.findIndex(h => {
+        const x = String(h).toLowerCase().replace(/\s/g,'');
+        return x.includes("ach%") || x.includes("achievement%") || x.includes("ach");
+      });
+      if(achIndex >= 0) sortCol = achIndex;
+
+      buildHeader();
+      setupCircleFilter();
+      setLastUpdated();
+      render();
+    } catch(e){
+      document.getElementById("count").innerText = "Render error: " + e.message;
+    }
+  }
+});
+
+document.getElementById("search").addEventListener("input", render);
+document.getElementById("circle").addEventListener("change", render);
+
+document.getElementById("btnAll").addEventListener("click", ()=>{
+  limitMode="all"; setActive("btnAll"); render();
+});
+document.getElementById("btn10").addEventListener("click", ()=>{
+  limitMode="top10"; setActive("btn10"); render();
+});
+document.getElementById("btn50").addEventListener("click", ()=>{
+  limitMode="top50"; setActive("btn50"); render();
+});
+</script>
+</body>
+</html>
